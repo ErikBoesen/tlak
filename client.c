@@ -3,11 +3,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <netdb.h>
+#include <sys/signal.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
 #define BUFFER (1<<12)
 #define PORT 1738
+
+void disconnect(int sig);
 
 static int socket_fd;
 
@@ -30,15 +33,16 @@ int main(int argc, char *argv[]) {
     server_addr.sin_addr = *((struct in_addr *)host->h_addr_list[0]);
     server_addr.sin_port = htons(PORT);
     if (connect(socket_fd, (struct sockaddr *)(&server_addr), sizeof(struct sockaddr)) < 0) {
-        perror("Couldn't connect to server");
+        perror("can't connect to server");
         return 1;
     }
+    signal(SIGINT, disconnect);
 
     fd_set client_fds;
     char up_buffer[BUFFER], down_buffer[BUFFER];
 
     while (1) {
-        // Reset fd (modified by select())
+        // Reset client_fds
         FD_ZERO(&client_fds);
         FD_SET(socket_fd, &client_fds);
         FD_SET(0, &client_fds);
@@ -61,4 +65,12 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+}
+
+// Notify the server when the client exits
+void disconnect(int sig) {
+    // Tell server we're disconnecting
+    write(socket_fd, "", BUFFER - 1);
+    close(socket_fd);
+    exit(0);
 }
