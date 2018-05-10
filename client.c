@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define BUFFER 1024
+#define BUFFER 1<<12
 #define PORT 1738
 
 static int socket_fd;
