@@ -35,27 +35,27 @@ int main(int argc, char *argv[]) {
     }
 
     fd_set client_fds;
-    char chatBuffer[BUFFER], msgBuffer[BUFFER];
+    char up_buffer[BUFFER], down_buffer[BUFFER];
 
     while (1) {
-        // Reset the fd set each time since select() modifies it
+        // Reset fd set each time (select() modifies it)
         FD_ZERO(&client_fds);
         FD_SET(socket_fd, &client_fds);
         FD_SET(0, &client_fds);
-        if (select(FD_SETSIZE, &client_fds, NULL, NULL, NULL) != -1) { // wait for an available fd
+        if (select(FD_SETSIZE, &client_fds, NULL, NULL, NULL) != -1) { // Check if input from some fd is available
             for (int fd = 0; fd < FD_SETSIZE; fd++) {
                 if (FD_ISSET(fd, &client_fds)) {
                     if (fd == socket_fd) {
                         // Receive data from server
-                        int numBytesRead = read(socket_fd, msgBuffer, BUFFER - 1);
-                        msgBuffer[numBytesRead] = '\0';
-                        printf("%s", msgBuffer);
-                        memset(&msgBuffer, 0, sizeof(msgBuffer));
+                        int num_bytes_read = read(socket_fd, down_buffer, BUFFER - 1);
+                        down_buffer[num_bytes_read] = '\0';
+                        printf("%s", down_buffer);
+                        memset(&down_buffer, 0, sizeof(down_buffer));
                     } else if (fd == 0) {
                         // Read from stdin and send to server
-                        fgets(chatBuffer, BUFFER - 1, stdin);
-                        if(write(socket_fd, chatBuffer, BUFFER - 1) == -1) perror("write failed: ");
-                        memset(&chatBuffer, 0, sizeof(chatBuffer));
+                        fgets(up_buffer, BUFFER - 1, stdin);
+                        if(write(socket_fd, up_buffer, BUFFER - 1) == -1) perror("write failed: ");
+                        memset(&up_buffer, 0, sizeof(up_buffer));
                     }
                 }
             }
