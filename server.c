@@ -35,16 +35,16 @@ typedef struct {
 
 // Important client data
 typedef struct {
-    server_t *data;
+    server_t *server;
     int client_socket_fd;
 } client_t;
 
 void start_chat(int socket_fd);
-void remove_client(server_t *data, int client_socket_fd);
+void remove_client(server_t *s, int client_socket_fd);
 
-void *new_client_handler(void *data);
-void *client_handler(void *chv);
-void *message_handler(void *data);
+void *new_client_handler(void *s);
+void *client_handler(void *c);
+void *message_handler(void *s);
 
 void queue_destroy(queue_t *q);
 queue_t* queue_init();
@@ -76,34 +76,34 @@ int main(int argc, char *argv[]) {
 
 // Spawns the new client handler thread and message consumer thread
 void start_chat(int socket_fd) {
-    server_t data;
-    data.num_clients = 0;
-    data.socket_fd = socket_fd;
-    data.queue = queue_init();
-    data.client_list_mutex = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
-    pthread_mutex_init(data.client_list_mutex, NULL);
+    server_t server;
+    server.num_clients = 0;
+    server.socket_fd = socket_fd;
+    server.queue = queue_init();
+    server.client_list_mutex = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(server.client_list_mutex, NULL);
 
     // Start thread to handle new clients
     pthread_t connection_thread;
-    if ((pthread_create(&connection_thread, NULL, (void *)&new_client_handler, (void *)&data)) == 0) {
+    if ((pthread_create(&connection_thread, NULL, (void *)&new_client_handler, (void *)&server)) == 0) {
         fprintf(stderr, "Started connection handler.\n");
     }
 
-    FD_ZERO(&(data.server_read_fds));
-    FD_SET(socket_fd, &(data.server_read_fds));
+    FD_ZERO(&(server.server_read_fds));
+    FD_SET(socket_fd, &(server.server_read_fds));
 
     // Start thread to receive messages
     pthread_t messages_thread;
-    if ((pthread_create(&messages_thread, NULL, (void *)&message_handler, (void *)&data)) == 0) {
+    if ((pthread_create(&messages_thread, NULL, (void *)&message_handler, (void *)&server)) == 0) {
         fprintf(stderr, "Started message handler.\n");
     }
 
     pthread_join(connection_thread, NULL);
     pthread_join(messages_thread, NULL);
 
-    queue_destroy(data.queue);
-    pthread_mutex_destroy(data.client_list_mutex);
-    free(data.client_list_mutex);
+    queue_destroy(server.queue);
+    pthread_mutex_destroy(server.client_list_mutex);
+    free(server.client_list_mutex);
 }
 
 // Initializes queue
@@ -155,63 +155,63 @@ char* queue_pop(queue_t *q) {
 }
 
 // Remove the socket from the list of active client sockets and closes it
-void remove_client(server_t *data, int client_socket_fd) {
-    pthread_mutex_lock(data->client_list_mutex);
+void remove_client(server_t *server, int client_socket_fd) {
+    pthread_mutex_lock(server->client_list_mutex);
     for (int i = 0; i < BUFFER; i++) {
-        if (data->client_sockets[i] == client_socket_fd) {
-            data->client_sockets[i] = 0;
+        if (server->client_sockets[i] == client_socket_fd) {
+            server->client_sockets[i] = 0;
             close(client_socket_fd);
-            data->num_clients--;
+            server->num_clients--;
             break;
         }
     }
-    pthread_mutex_unlock(data->client_list_mutex);
+    pthread_mutex_unlock(server->client_list_mutex);
 }
 
 // Thread to handle new connections. Add client's fd to list of client fds and spawn a new client_handler thread for it
-void *new_client_handler(void *data) {
-    server_t *s = (server_t *) data;
+void *new_client_handler(void *s) {
+    server_t *server = (server_t *)s;
     while(1) {
-        int client_socket_fd = accept(s->socket_fd, NULL, NULL);
+        int client_socket_fd = accept(server->socket_fd, NULL, NULL);
         if (client_socket_fd > 0) {
             fprintf(stderr, ":) Accepted new client on socket %d.\n", client_socket_fd);
 
-            // Obtain lock on clients list and add new client in
-            pthread_mutex_lock(s->client_list_mutex);
-            if (s->num_clients < BUFFER) {
+            // Lock clients list and add new client in
+            pthread_mutex_lock(server->client_list_mutex);
+            if (server->num_clients < BUFFER) {
                 // Add new client to list
                 for (int i = 0; i < BUFFER; i++) {
-                    if (!FD_ISSET(s->client_sockets[i], &(s->server_read_fds))) {
-                        s->client_sockets[i] = client_socket_fd;
+                    if (!FD_ISSET(server->client_sockets[i], &(server->server_read_fds))) {
+                        server->client_sockets[i] = client_socket_fd;
                         i = BUFFER;
                     }
                 }
 
-                FD_SET(client_socket_fd, &(s->server_read_fds));
+                FD_SET(client_socket_fd, &(server->server_read_fds));
 
                 // Spawn thread to handle client's messages
-                client_t c;
-                c.client_socket_fd = client_socket_fd;
-                c.data = s;
+                client_t client;
+                client.client_socket_fd = client_socket_fd;
+                client.server = server;
 
                 pthread_t clientThread;
-                if ((pthread_create(&clientThread, NULL, (void *)&client_handler, (void *)&c)) == 0) {
-                    s->num_clients++;
+                if ((pthread_create(&clientThread, NULL, (void *)&client_handler, (void *)&client)) == 0) {
+                    server->num_clients++;
                     fprintf(stderr, ":) Client has joined chat. Socket: %d\n", client_socket_fd);
                 } else close(client_socket_fd);
             }
-            pthread_mutex_unlock(s->client_list_mutex);
+            pthread_mutex_unlock(server->client_list_mutex);
         }
     }
 }
 
 // Listen for messages from client to add to message queue
 void *client_handler(void *c) {
-    client_t *vars = (client_t *)c;
-    server_t *data = (server_t *)vars->data;
+    client_t *client = (client_t *)c;
+    server_t *server = (server_t *)client->server;
 
-    queue_t *q = data->queue;
-    int client_socket_fd = vars->client_socket_fd;
+    queue_t *q = server->queue;
+    int client_socket_fd = client->client_socket_fd;
 
     char msg_buffer[BUFFER];
     while (1) {
@@ -220,7 +220,7 @@ void *client_handler(void *c) {
         // If the client sent exit, remove them from the client list and close their socket
         if (strcmp(msg_buffer, "") == 0) {
             fprintf(stderr, ":( Client on socket %d disconnected.\n", client_socket_fd);
-            remove_client(data, client_socket_fd);
+            remove_client(server, client_socket_fd);
             return NULL;
         } else {
             // Wait for queue to not be full before pushing message
@@ -237,10 +237,10 @@ void *client_handler(void *c) {
 }
 
 // Wait for the queue to have messages then remove them from queue and broadcast to clients
-void *message_handler(void *data) {
-    server_t *chat_data = (server_t *)data;
-    queue_t *q = chat_data->queue;
-    int *client_sockets = chat_data->client_sockets;
+void *message_handler(void *s) {
+    server_t *server = (server_t *)s;
+    queue_t *q = server->queue;
+    int *client_sockets = server->client_sockets;
 
     while (1) {
         // Obtain lock and pop message from queue when not empty
@@ -254,7 +254,7 @@ void *message_handler(void *data) {
 
         // Broadcast message to all connected clients
         fprintf(stderr, "<- Broadcasting: %s", msg);
-        for (int i = 0; i < chat_data->num_clients; i++) {
+        for (int i = 0; i < server->num_clients; i++) {
             int socket = client_sockets[i];
             if (socket != 0 && write(socket, msg, BUFFER - 1) == -1)
                 perror("Socket write failed: ");
