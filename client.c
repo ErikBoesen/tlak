@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
     char up_buffer[BUFFER], down_buffer[BUFFER];
 
     while (1) {
-        // Reset fd set each time (select() modifies it)
+        // Reset fd (modified by select())
         FD_ZERO(&client_fds);
         FD_SET(socket_fd, &client_fds);
         FD_SET(0, &client_fds);
