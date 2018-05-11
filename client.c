@@ -66,6 +66,7 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+    return 0;
 }
 
 // Notify the server when the client exits
