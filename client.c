@@ -40,6 +40,7 @@ int main(int argc, char *argv[]) {
 
     fd_set client_fds;
     char up_buffer[BUFFER], down_buffer[BUFFER];
+    puts("Welcome to tlak! Type a message and press enter to send.");
 
     while (1) {
         // Reset client_fds
