@@ -13,7 +13,7 @@
 #include <pthread.h>
 
 #define BUFFER (1<<12)
-#define PORT 1738
+#define PORT 17
 
 typedef struct {
     char *buffer[BUFFER];
