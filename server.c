@@ -189,8 +189,8 @@ void *new_client_handler(void *s) {
                 client.client_socket_fd = client_socket_fd;
                 client.server = server;
 
-                pthread_t clientThread;
-                if ((pthread_create(&clientThread, NULL, (void *)&client_handler, (void *)&client)) == 0) {
+                pthread_t client_thread;
+                if ((pthread_create(&client_thread, NULL, (void *)&client_handler, (void *)&client)) == 0) {
                     server->num_clients++;
                     fprintf(stderr, ":) Client has joined chat. Socket: %d\n", client_socket_fd);
                 } else close(client_socket_fd);
