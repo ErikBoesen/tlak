@@ -178,7 +178,7 @@ void *new_client_handler(void *s) {
                 for (int i = 0; i < BUFFER; i++) {
                     if (!FD_ISSET(server->client_sockets[i], &(server->server_read_fds))) {
                         server->client_sockets[i] = client_socket_fd;
-                        i = BUFFER;
+                        break;
                     }
                 }
 
