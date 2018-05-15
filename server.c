@@ -166,7 +166,7 @@ void remove_client(server_t *server, int client_socket_fd) {
 // Thread to handle new connections. Add client's fd to list of client fds and spawn a new client_handler thread for it
 void *new_client_handler(void *s) {
     server_t *server = (server_t *)s;
-    while(1) {
+    while (1) {
         int client_socket_fd = accept(server->socket_fd, NULL, NULL);
         if (client_socket_fd > 0) {
             fprintf(stderr, ":) Accepted new client on socket %d.\n", client_socket_fd);
